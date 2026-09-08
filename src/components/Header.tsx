@@ -35,6 +35,7 @@ const Header = () => {
               <Link
                 key={link.label}
                 to={link.to}
+                search={(previous) => previous}
                 className="text-xs text-primary-foreground/80 hover:text-primary-foreground transition-colors font-medium"
               >
                 {link.label}
@@ -47,7 +48,11 @@ const Header = () => {
 
       <div className="bg-primary">
         <div className="section-container flex items-center justify-between h-14">
-          <Link to="/" className="flex items-center gap-1.5 font-extrabold text-xl">
+          <Link
+            to="/"
+            search={(previous) => previous}
+            className="flex items-center gap-1.5 font-extrabold text-xl"
+          >
             <span className="text-tim-red text-2xl">≡</span>
             <span className="text-primary-foreground text-2xl tracking-tight">TIM</span>
           </Link>
@@ -57,6 +62,7 @@ const Header = () => {
               <Link
                 key={link.label}
                 to={link.to}
+                search={(previous) => previous}
                 className={`text-sm font-medium transition-colors hover:text-primary-foreground ${
                   isActive(link.to) ? "text-primary-foreground" : "text-primary-foreground/70"
                 }`}
@@ -90,6 +96,7 @@ const Header = () => {
                 <Link
                   key={link.label}
                   to={link.to}
+                  search={(previous) => previous}
                   onClick={() => setMobileOpen(false)}
                   className={`text-sm font-medium py-2 transition-colors ${
                     isActive(link.to)
