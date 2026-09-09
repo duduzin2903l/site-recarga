@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   blackcatCheckStatus,
+  deriveSharpifyClientId,
   laranjinhaCheckStatus,
   normalizeGateway,
   sharpifyCheckStatus,
@@ -35,22 +36,21 @@ export const Route = createFileRoute("/api/public/check-pix-payment-status")({
 
           let result;
           if (gateway === "blackcat") {
-            const apiKey =
-              process.env["BLACKCAT_SECRET_KEY"] || process.env["STRIPE_LIVE_API_KEY"];
+            const apiKey = process.env["BLACKCAT_SECRET_KEY"] || process.env["STRIPE_LIVE_API_KEY"];
             if (!apiKey) {
-              return new Response(
-                JSON.stringify({ error: "BlackCat não configurada" }),
-                { status: 500, headers: cors },
-              );
+              return new Response(JSON.stringify({ error: "BlackCat não configurada" }), {
+                status: 500,
+                headers: cors,
+              });
             }
             result = await blackcatCheckStatus(apiKey, String(transactionId));
           } else if (gateway === "laranjinha") {
             const secretKey = process.env["LARANJINHA_SECRET_KEY"];
             if (!secretKey) {
-              return new Response(
-                JSON.stringify({ error: "Laranjinha Pay não configurada" }),
-                { status: 500, headers: cors },
-              );
+              return new Response(JSON.stringify({ error: "Laranjinha Pay não configurada" }), {
+                status: 500,
+                headers: cors,
+              });
             }
             result = await laranjinhaCheckStatus(
               {
@@ -61,28 +61,33 @@ export const Route = createFileRoute("/api/public/check-pix-payment-status")({
               String(transactionId),
             );
           } else {
-            const clientId = process.env["SHARPIFY_CLIENT_ID"];
             const clientSecret = process.env["SHARPIFY_CLIENT_SECRET"];
+            const clientId =
+              process.env["SHARPIFY_CLIENT_ID"] || deriveSharpifyClientId(clientSecret || "");
             if (!clientId || !clientSecret) {
-              return new Response(
-                JSON.stringify({ error: "Sharpify não configurada" }),
-                { status: 500, headers: cors },
-              );
+              return new Response(JSON.stringify({ error: "Sharpify não configurada" }), {
+                status: 500,
+                headers: cors,
+              });
             }
             result = await sharpifyCheckStatus({ clientId, clientSecret }, String(transactionId));
           }
 
-          return new Response(
-            JSON.stringify({ success: true, gateway, ...result }),
-            { status: 200, headers: cors },
-          );
+          return new Response(JSON.stringify({ success: true, gateway, ...result }), {
+            status: 200,
+            headers: cors,
+          });
         } catch (error) {
           const details = (error as { details?: unknown }).details;
-          console.error("check-pix-payment-status error:", (error as Error).message, JSON.stringify(details ?? null));
-          return new Response(
-            JSON.stringify({ error: (error as Error).message, details }),
-            { status: 500, headers: cors },
+          console.error(
+            "check-pix-payment-status error:",
+            (error as Error).message,
+            JSON.stringify(details ?? null),
           );
+          return new Response(JSON.stringify({ error: (error as Error).message, details }), {
+            status: 500,
+            headers: cors,
+          });
         }
       },
     },

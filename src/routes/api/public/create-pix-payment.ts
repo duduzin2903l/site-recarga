@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   blackcatCreatePix,
+  deriveSharpifyClientId,
   laranjinhaCreatePix,
   normalizeGateway,
   sharpifyCreatePix,
@@ -45,8 +46,7 @@ export const Route = createFileRoute("/api/public/create-pix-payment")({
 
           let result;
           if (gateway === "blackcat") {
-            const apiKey =
-              process.env["BLACKCAT_SECRET_KEY"] || process.env["STRIPE_LIVE_API_KEY"];
+            const apiKey = process.env["BLACKCAT_SECRET_KEY"] || process.env["STRIPE_LIVE_API_KEY"];
             if (!apiKey) {
               return new Response(
                 JSON.stringify({
@@ -75,8 +75,9 @@ export const Route = createFileRoute("/api/public/create-pix-payment")({
               input,
             );
           } else {
-            const clientId = process.env["SHARPIFY_CLIENT_ID"];
             const clientSecret = process.env["SHARPIFY_CLIENT_SECRET"];
+            const clientId =
+              process.env["SHARPIFY_CLIENT_ID"] || deriveSharpifyClientId(clientSecret || "");
             if (!clientId || !clientSecret) {
               return new Response(
                 JSON.stringify({
@@ -86,20 +87,31 @@ export const Route = createFileRoute("/api/public/create-pix-payment")({
                 { status: 500, headers: cors },
               );
             }
-            result = await sharpifyCreatePix({ clientId, clientSecret }, input);
+            result = await sharpifyCreatePix(
+              {
+                clientId,
+                clientSecret,
+                webhookUrl: process.env["SHARPIFY_WEBHOOK_URL"],
+              },
+              input,
+            );
           }
 
-          return new Response(
-            JSON.stringify({ success: true, gateway, ...result }),
-            { status: 200, headers: cors },
-          );
+          return new Response(JSON.stringify({ success: true, gateway, ...result }), {
+            status: 200,
+            headers: cors,
+          });
         } catch (error) {
           const details = (error as { details?: unknown }).details;
-          console.error("create-pix-payment error:", (error as Error).message, JSON.stringify(details ?? null));
-          return new Response(
-            JSON.stringify({ error: (error as Error).message, details }),
-            { status: 500, headers: cors },
+          console.error(
+            "create-pix-payment error:",
+            (error as Error).message,
+            JSON.stringify(details ?? null),
           );
+          return new Response(JSON.stringify({ error: (error as Error).message, details }), {
+            status: 500,
+            headers: cors,
+          });
         }
       },
     },
