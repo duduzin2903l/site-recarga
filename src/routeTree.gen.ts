@@ -16,6 +16,7 @@ import { Route as ContatoRouteImport } from './routes/contato'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicCreatePixPaymentRouteImport } from './routes/api/public/create-pix-payment'
 import { Route as ApiPublicCheckPixPaymentStatusRouteImport } from './routes/api/public/check-pix-payment-status'
+import { Route as ApiPublicSharpifyWebhookRouteImport } from './routes/api/public/sharpify-webhook'
 
 const SobreRoute = SobreRouteImport.update({
   id: '/sobre',
@@ -54,6 +55,12 @@ const ApiPublicCheckPixPaymentStatusRoute =
     path: '/api/public/check-pix-payment-status',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicSharpifyWebhookRoute =
+  ApiPublicSharpifyWebhookRouteImport.update({
+    id: '/api/public/sharpify-webhook',
+    path: '/api/public/sharpify-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -63,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/sobre': typeof SobreRoute
   '/api/public/check-pix-payment-status': typeof ApiPublicCheckPixPaymentStatusRoute
   '/api/public/create-pix-payment': typeof ApiPublicCreatePixPaymentRoute
+  '/api/public/sharpify-webhook': typeof ApiPublicSharpifyWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -72,6 +80,7 @@ export interface FileRoutesByTo {
   '/sobre': typeof SobreRoute
   '/api/public/check-pix-payment-status': typeof ApiPublicCheckPixPaymentStatusRoute
   '/api/public/create-pix-payment': typeof ApiPublicCreatePixPaymentRoute
+  '/api/public/sharpify-webhook': typeof ApiPublicSharpifyWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -82,6 +91,7 @@ export interface FileRoutesById {
   '/sobre': typeof SobreRoute
   '/api/public/check-pix-payment-status': typeof ApiPublicCheckPixPaymentStatusRoute
   '/api/public/create-pix-payment': typeof ApiPublicCreatePixPaymentRoute
+  '/api/public/sharpify-webhook': typeof ApiPublicSharpifyWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -93,6 +103,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/api/public/check-pix-payment-status'
     | '/api/public/create-pix-payment'
+    | '/api/public/sharpify-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -102,6 +113,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/api/public/check-pix-payment-status'
     | '/api/public/create-pix-payment'
+    | '/api/public/sharpify-webhook'
   id:
     | '__root__'
     | '/'
@@ -111,6 +123,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/api/public/check-pix-payment-status'
     | '/api/public/create-pix-payment'
+    | '/api/public/sharpify-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -121,6 +134,7 @@ export interface RootRouteChildren {
   SobreRoute: typeof SobreRoute
   ApiPublicCheckPixPaymentStatusRoute: typeof ApiPublicCheckPixPaymentStatusRoute
   ApiPublicCreatePixPaymentRoute: typeof ApiPublicCreatePixPaymentRoute
+  ApiPublicSharpifyWebhookRoute: typeof ApiPublicSharpifyWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -174,6 +188,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCheckPixPaymentStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sharpify-webhook': {
+      id: '/api/public/sharpify-webhook'
+      path: '/api/public/sharpify-webhook'
+      fullPath: '/api/public/sharpify-webhook'
+      preLoaderRoute: typeof ApiPublicSharpifyWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -185,6 +206,7 @@ const rootRouteChildren: RootRouteChildren = {
   SobreRoute: SobreRoute,
   ApiPublicCheckPixPaymentStatusRoute: ApiPublicCheckPixPaymentStatusRoute,
   ApiPublicCreatePixPaymentRoute: ApiPublicCreatePixPaymentRoute,
+  ApiPublicSharpifyWebhookRoute: ApiPublicSharpifyWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
