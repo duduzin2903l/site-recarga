@@ -12,6 +12,7 @@ export interface PixResult {
   qrCodeBase64: string;
   externalLink: string;
   expiresAt: string | null;
+  createdAt: string;
 }
 
 export interface PixStatusResult {
@@ -92,6 +93,7 @@ export async function sharpifyCreatePix(
     qrCodeBase64: gatewayData.qrCode || "",
     externalLink: gatewayData.paymentLink || "",
     expiresAt: paymentLink?.payment?.gateway?.expirationDate || null,
+    createdAt: paymentLink?.createdAt || new Date().toISOString(),
   };
 }
 
@@ -182,6 +184,7 @@ export async function blackcatCreatePix(apiKey: string, input: CreatePixInput): 
     qrCodeBase64: pick(sale, ["pix.qrCodeBase64", "pix.qrcodeBase64", "qrCodeBase64"]),
     externalLink: pick(sale, ["pix.paymentLink", "paymentUrl", "checkoutUrl"]),
     expiresAt: pick(sale, ["pix.expiresAt", "pix.expirationDate", "expiresAt"]) || null,
+    createdAt: pick(sale, ["createdAt", "created_at"]) || new Date().toISOString(),
   };
 }
 
@@ -273,6 +276,7 @@ export async function laranjinhaCreatePix(
     ]),
     externalLink: pick(charge, ["payment_url", "checkout_url", "pix.payment_url"]),
     expiresAt: pick(charge, ["expires_at", "pix.expires_at", "expiration_date"]) || null,
+    createdAt: pick(charge, ["createdAt", "created_at"]) || new Date().toISOString(),
   };
 }
 
