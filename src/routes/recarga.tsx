@@ -4,17 +4,18 @@ export const Route = createFileRoute("/recarga")({
   head: () => ({
     meta: [
       { title: "Recarga TIM via PIX — Recarregue agora" },
-      { name: "description", content: "Recarregue seu TIM via PIX. Pagamento instantâneo, bônus de internet e total segurança." },
+      {
+        name: "description",
+        content:
+          "Recarregue seu TIM via PIX. Pagamento instantâneo, bônus de internet e total segurança.",
+      },
     ],
   }),
   validateSearch: (search: Record<string, unknown>) => {
     const step = search.step;
     return {
       ...search,
-      step:
-        step === "phone" || step === "payment" || step === "pix"
-          ? step
-          : undefined,
+      step: step === "phone" || step === "payment" || step === "pix" ? step : undefined,
     };
   },
   component: RecargaPage,
@@ -33,15 +34,25 @@ import PixIcon from "@/components/icons/PixIcon";
 import { QRCodeSVG } from "qrcode.react";
 import { trackEvent } from "@/lib/tracking";
 
-const safeGetItem = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
-const safeSetItem = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch {} };
-const safeRemoveItem = (key: string) => { try { localStorage.removeItem(key); } catch {} };
+const safeGetItem = (key: string) => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const safeSetItem = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+};
+const safeRemoveItem = (key: string) => {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+};
 
-const phoneSchema = z
-  .string()
-  .trim()
-  .min(10, "Número inválido. Use DDD + número.")
-  .max(15);
+const phoneSchema = z.string().trim().min(10, "Número inválido. Use DDD + número.").max(15);
 
 const cpfSchema = z
   .string()
@@ -78,14 +89,7 @@ type PixData = {
   [key: string]: unknown;
 };
 
-type PaymentStatus =
-  | "PENDING"
-  | "PAID"
-  | "FAILED"
-  | "CANCELLED"
-  | "EXPIRED"
-  | "REFUNDED"
-  | "";
+type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "EXPIRED" | "REFUNDED" | "";
 
 const RECHARGE_VALUES = [20, 24.9, 29.9, 34.9, 39.9, 44.9, 49.9, 69.9, 99.9];
 const BONUS_MAP: Record<number, string> = {
@@ -196,11 +200,20 @@ const extractPixFields = (payload: unknown) => {
 
       const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-      if (!pixCode && (normalizedKey.includes("pixcode") || normalizedKey.includes("copiacola") || value.startsWith("000201"))) {
+      if (
+        !pixCode &&
+        (normalizedKey.includes("pixcode") ||
+          normalizedKey.includes("copiacola") ||
+          value.startsWith("000201"))
+      ) {
         pixCode = value;
       }
 
-      if (!qrCodeBase64 && (normalizedKey.includes("base64") || normalizedKey.includes("qrcode")) && value.length > 100) {
+      if (
+        !qrCodeBase64 &&
+        (normalizedKey.includes("base64") || normalizedKey.includes("qrcode")) &&
+        value.length > 100
+      ) {
         qrCodeBase64 = value;
       }
 
@@ -212,12 +225,7 @@ const extractPixFields = (payload: unknown) => {
 };
 
 const extractFunctionErrorMessage = (errorPayload: unknown): string => {
-  const candidates = [
-    ["message"],
-    ["error"],
-    ["details", "message"],
-    ["details", "error"],
-  ];
+  const candidates = [["message"], ["error"], ["details", "message"], ["details", "error"]];
 
   for (const path of candidates) {
     const value = asNonEmptyString(getByPath(errorPayload, path));
@@ -239,9 +247,7 @@ const normalizePaymentStatus = (value: string): PaymentStatus => {
     "",
   ];
 
-  return accepted.includes(normalized as PaymentStatus)
-    ? (normalized as PaymentStatus)
-    : "";
+  return accepted.includes(normalized as PaymentStatus) ? (normalized as PaymentStatus) : "";
 };
 
 const getPaymentStatusLabel = (status: PaymentStatus): string => {
@@ -282,15 +288,13 @@ const customScrollTo = (targetY: number, duration: number = 1000) => {
   requestAnimationFrame(animateScroll);
 };
 
-
-
 function RecargaPage() {
   useEffect(() => {
     trackEvent("page_view", {
       telefone: "",
       valor: null,
       transaction_id: null,
-      status: "visitou"
+      status: "visitou",
     });
   }, []);
 
@@ -298,11 +302,12 @@ function RecargaPage() {
   const [error, setError] = useState("");
   const [cpf, setCpf] = useState("");
   const [cpfError, setCpfError] = useState("");
-  
+
   const search = useSearch({ from: "/recarga" }) as { step?: string };
   const navigate = useNavigate();
   const stepParam = (search.step ?? null) as Step | null;
-  const step: Step = stepParam && ["phone", "payment", "pix"].includes(stepParam) ? stepParam : "phone";
+  const step: Step =
+    stepParam && ["phone", "payment", "pix"].includes(stepParam) ? stepParam : "phone";
 
   const setStep = (newStep: Step, isBack = false) => {
     void navigate({
@@ -321,9 +326,9 @@ function RecargaPage() {
   const [timeLeft, setTimeLeft] = useState(15 * 60);
   const [loading, setLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
-  
+
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("");
-  
+
   const [pixData, setPixData] = useState<PixData | null>(null);
 
   const restoreSavedPixData = (): PixData | null => {
@@ -367,23 +372,7 @@ function RecargaPage() {
     const telefoneValue = phone.replace(/\D/g, "");
     if (telefoneValue.length >= 10 && !phoneTrackedRef.current) {
       phoneTrackedRef.current = true;
-      let sessionId = safeGetItem("trackingSessionId");
-      if (!sessionId) {
-        sessionId = crypto.randomUUID();
-        safeSetItem("trackingSessionId", sessionId);
-      }
-      fetch("https://vwkahynseyqknedzplxa.supabase.co/functions/v1/events", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a2FoeW5zZXlxa25lZHpwbHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTgwMzgsImV4cCI6MjA5MDE5NDAzOH0.R8hX6MlI9ZHRRZvDmOYA0V2p8ulgU1iqlS4kMc9ztgA"
-        },
-        body: JSON.stringify({
-          event_name: "preencheu_telefone",
-          telefone: telefoneValue,
-          session_id: sessionId
-        })
-      }).catch(console.error);
+      void trackEvent("preencheu_telefone", { status: "preenchido" });
     } else if (telefoneValue.length < 10) {
       phoneTrackedRef.current = false;
     }
@@ -391,31 +380,13 @@ function RecargaPage() {
 
   useEffect(() => {
     const cpfValue = cpf.replace(/\D/g, "");
-    const telefoneValue = phone.replace(/\D/g, "");
     if (cpfValue.length === 11 && !cpfTrackedRef.current) {
       cpfTrackedRef.current = true;
-      let sessionId = safeGetItem("trackingSessionId");
-      if (!sessionId) {
-        sessionId = crypto.randomUUID();
-        safeSetItem("trackingSessionId", sessionId);
-      }
-      fetch("https://vwkahynseyqknedzplxa.supabase.co/functions/v1/events", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a2FoeW5zZXlxa25lZHpwbHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTgwMzgsImV4cCI6MjA5MDE5NDAzOH0.R8hX6MlI9ZHRRZvDmOYA0V2p8ulgU1iqlS4kMc9ztgA"
-        },
-        body: JSON.stringify({
-          event_name: "preencheu_cpf",
-          telefone: telefoneValue,
-          cpf: cpfValue,
-          session_id: sessionId
-        })
-      }).catch(console.error);
+      void trackEvent("preencheu_cpf", { status: "preenchido" });
     } else if (cpfValue.length < 11) {
       cpfTrackedRef.current = false;
     }
-  }, [cpf, phone]);
+  }, [cpf]);
 
   useEffect(() => {
     if (selectedValue) {
@@ -424,54 +395,59 @@ function RecargaPage() {
   }, [selectedValue]);
 
   const getPixDataForAmount = async (amount: number): Promise<PixData> => {
-      const BR_NAMES = [
-        "Lucas Rodrigues", "Pedro Oliveira", "Gabriel Sousa", "Matheus Santos",
-        "João Silva", "Guilherme Costa", "Marcos Pereira", "Carlos Almeida",
-        "Ana Clara Dias", "Maria Fernanda Lima", "Julia Carvalho", "Beatriz Ribeiro",
-        "Mariana Araújo", "Camila Martins", "Fernanda Barbosa", "Amanda Castro",
-        "Rafael Fernandes", "Diego Rocha", "Bruno Gomes", "Thiago Moura",
-        "Juliana Cardoso", "Aline Freitas", "Renata Nunes", "Carolina Teixeira",
-        "Eduardo Pinto", "Fernando Moraes", "Gustavo Monteiro", "Leonardo Mendes",
-        "Natália Correia", "Bruna Melo"
-      ];
-      const randomName = BR_NAMES[Math.floor(Math.random() * BR_NAMES.length)];
-      const randomEmail = `${randomName.split(' ')[0].toLowerCase()}${Math.floor(Math.random() * 999)}@gmail.com`;
-
-      const res = await fetch("/api/public/create-pix-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, phone, customerName: randomName, customerEmail: randomEmail, customerDocument: cpf.replace(/\D/g, "") }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        const fallbackPix = extractPixFields(data);
-        if (fallbackPix.pixCode) {
-          return { ...(isRecord(data) ? data : {}), ...fallbackPix, status: "PENDING" } as PixData;
-        }
-        const gatewayMessage = extractFunctionErrorMessage(data) || "Erro ao gerar pagamento. Tente novamente.";
-        throw new Error(gatewayMessage);
+    const res = await fetch("/api/public/create-pix-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount,
+        phone,
+        customerDocument: cpf.replace(/\D/g, ""),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const fallbackPix = extractPixFields(data);
+      if (fallbackPix.pixCode) {
+        return { ...(isRecord(data) ? data : {}), ...fallbackPix, status: "PENDING" } as PixData;
       }
+      const gatewayMessage =
+        extractFunctionErrorMessage(data) || "Erro ao gerar pagamento. Tente novamente.";
+      throw new Error(gatewayMessage);
+    }
 
-      const resolvedPix = extractPixFields(data);
-      if (!resolvedPix.pixCode) throw new Error("Pagamento criado, mas o codigo PIX nao foi encontrado.");
+    const resolvedPix = extractPixFields(data);
+    if (!resolvedPix.pixCode)
+      throw new Error("Pagamento criado, mas o codigo PIX nao foi encontrado.");
 
-      const transactionId = asNonEmptyString(getByPath(data, ["transactionId"])) || asNonEmptyString(getByPath(data, ["data", "transactionId"]));
-      const status = normalizePaymentStatus(asNonEmptyString(getByPath(data, ["status"])) || asNonEmptyString(getByPath(data, ["data", "status"])) || "PENDING");
-      const expiresAt = asNonEmptyString(getByPath(data, ["expiresAt"])) || asNonEmptyString(getByPath(data, ["data", "paymentData", "expiresAt"]));
-      const invoiceUrl = asNonEmptyString(getByPath(data, ["invoiceUrl"])) || asNonEmptyString(getByPath(data, ["data", "invoiceUrl"]));
-      const qrCodeBase64 = asNonEmptyString(getByPath(data, ["qrCodeBase64"])) || asNonEmptyString(getByPath(data, ["data", "paymentData", "qrCodeBase64"])) || resolvedPix.qrCodeBase64;
+    const transactionId =
+      asNonEmptyString(getByPath(data, ["transactionId"])) ||
+      asNonEmptyString(getByPath(data, ["data", "transactionId"]));
+    const status = normalizePaymentStatus(
+      asNonEmptyString(getByPath(data, ["status"])) ||
+        asNonEmptyString(getByPath(data, ["data", "status"])) ||
+        "PENDING",
+    );
+    const expiresAt =
+      asNonEmptyString(getByPath(data, ["expiresAt"])) ||
+      asNonEmptyString(getByPath(data, ["data", "paymentData", "expiresAt"]));
+    const invoiceUrl =
+      asNonEmptyString(getByPath(data, ["invoiceUrl"])) ||
+      asNonEmptyString(getByPath(data, ["data", "invoiceUrl"]));
+    const qrCodeBase64 =
+      asNonEmptyString(getByPath(data, ["qrCodeBase64"])) ||
+      asNonEmptyString(getByPath(data, ["data", "paymentData", "qrCodeBase64"])) ||
+      resolvedPix.qrCodeBase64;
 
-      return {
-        ...(isRecord(data) ? data : {}),
-        transactionId,
-        status: status || "PENDING",
-        expiresAt,
-        invoiceUrl,
-        pixCode: resolvedPix.pixCode,
-        qrCodeBase64,
-      };
+    return {
+      ...(isRecord(data) ? data : {}),
+      transactionId,
+      status: status || "PENDING",
+      expiresAt,
+      invoiceUrl,
+      pixCode: resolvedPix.pixCode,
+      qrCodeBase64,
+    };
   };
-
 
   const expiresAtSeconds = useMemo(() => {
     const MAX_SECONDS = 15 * 60;
@@ -491,7 +467,8 @@ function RecargaPage() {
           clearInterval(interval);
           window.scrollTo(0, 0);
           setTimeout(() => {
-            const y = bottomBtns.getBoundingClientRect().bottom + window.scrollY - window.innerHeight + 40;
+            const y =
+              bottomBtns.getBoundingClientRect().bottom + window.scrollY - window.innerHeight + 40;
             customScrollTo(Math.max(0, y), 800);
           }, 50); // slight delay to allow layout to settle
         }
@@ -505,8 +482,8 @@ function RecargaPage() {
         if (formSection) {
           clearInterval(interval);
           setTimeout(() => {
-             const y = formSection.getBoundingClientRect().top + window.scrollY - 80;
-             customScrollTo(Math.max(0, y), 800);
+            const y = formSection.getBoundingClientRect().top + window.scrollY - 80;
+            customScrollTo(Math.max(0, y), 800);
           }, 50);
         }
       }, 50);
@@ -563,9 +540,7 @@ function RecargaPage() {
         const data = await res.json();
         if (!res.ok) return;
 
-        const status = normalizePaymentStatus(
-          asNonEmptyString(getByPath(data, ["status"])),
-        );
+        const status = normalizePaymentStatus(asNonEmptyString(getByPath(data, ["status"])));
 
         if (!cancelled && status) {
           setPaymentStatus(status);
@@ -594,23 +569,24 @@ function RecargaPage() {
                     safeSetItem("recargaOrderData", JSON.stringify(parsed));
                   } catch (e) {}
                 }
-                return { ...prev, pixCode: resolved.pixCode, qrCodeBase64: resolved.qrCodeBase64 || prev.qrCodeBase64 };
+                return {
+                  ...prev,
+                  pixCode: resolved.pixCode,
+                  qrCodeBase64: resolved.qrCodeBase64 || prev.qrCodeBase64,
+                };
               }
               return prev;
             });
           }
         }
 
-        if (
-          !cancelled &&
-          (status === "PAID" || getByPath(data, ["paid"]) === true)
-        ) {
+        if (!cancelled && (status === "PAID" || getByPath(data, ["paid"]) === true)) {
           if (!paidNotifiedRef.current) {
             trackEvent("pagamento_aprovado", {
               telefone: phone,
               valor: selectedValue,
               transaction_id: pixData.transactionId || null,
-              status: "pago"
+              status: "pago",
             });
             toast.success("Pagamento confirmado com sucesso.");
             paidNotifiedRef.current = true;
@@ -665,12 +641,13 @@ function RecargaPage() {
     return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
   };
 
-  const isPhoneFormComplete = phone.replace(/\D/g, "").length >= 10 && cpf.replace(/\D/g, "").length === 11;
+  const isPhoneFormComplete =
+    phone.replace(/\D/g, "").length >= 10 && cpf.replace(/\D/g, "").length === 11;
 
   const handleConfirm = () => {
     const phoneResult = phoneSchema.safeParse(phone);
     const cpfResult = cpfSchema.safeParse(cpf);
-    
+
     let hasError = false;
 
     if (!phoneResult.success) {
@@ -698,7 +675,7 @@ function RecargaPage() {
       telefone: phone,
       valor: selectedValue,
       transaction_id: pixData?.transactionId || null,
-      status: "clicou_recarregar"
+      status: "clicou_recarregar",
     });
     if (paymentMethod === "pix") {
       const success = await generatePix(false);
@@ -721,21 +698,21 @@ function RecargaPage() {
   }, [step]);
 
   // PIX gerado no botão Recarregar para chegar instantâneo na próxima tela
-  
+
   const generatePix = async (shouldCopy = false): Promise<boolean> => {
     setLoading(true);
     try {
       const pixDataResult = await getPixDataForAmount(selectedValue);
 
       paidNotifiedRef.current = pixDataResult.status === "PAID";
-      setPaymentStatus(pixDataResult.status as PaymentStatus || "PENDING");
+      setPaymentStatus((pixDataResult.status as PaymentStatus) || "PENDING");
       setPixData(pixDataResult);
 
       trackEvent("gerar_pix", {
         telefone: phone,
         valor: selectedValue,
         transaction_id: pixDataResult.transactionId || null,
-        status: "pix_gerado"
+        status: "pix_gerado",
       });
 
       if (pixDataResult.status === "PAID") {
@@ -743,11 +720,13 @@ function RecargaPage() {
           telefone: phone,
           valor: selectedValue,
           transaction_id: pixDataResult.transactionId || null,
-          status: "pago"
+          status: "pago",
         });
       }
 
-      const expiresAtTimestamp = pixDataResult.expiresAt ? new Date(pixDataResult.expiresAt).getTime() : Date.now() + 15 * 60 * 1000;
+      const expiresAtTimestamp = pixDataResult.expiresAt
+        ? new Date(pixDataResult.expiresAt).getTime()
+        : Date.now() + 15 * 60 * 1000;
       const orderData = {
         phone,
         amount: selectedValue,
@@ -756,7 +735,7 @@ function RecargaPage() {
         qrCodeImage: pixDataResult.qrCodeBase64,
         txid: pixDataResult.transactionId,
         status: pixDataResult.status || "PENDING",
-        expiresAt: expiresAtTimestamp
+        expiresAt: expiresAtTimestamp,
       };
       safeSetItem("recargaOrderData", JSON.stringify(orderData));
 
@@ -781,27 +760,23 @@ function RecargaPage() {
 
   const parsedPixFields = extractPixFields(pixData);
   const pixCode = pixData?.pixCode || parsedPixFields.pixCode || "";
-  const pixQrCodeImage =
-    pixData?.qrCodeBase64 || parsedPixFields.qrCodeBase64 || "";
+  const pixQrCodeImage = pixData?.qrCodeBase64 || parsedPixFields.qrCodeBase64 || "";
   const pixQrCodeSrc = pixQrCodeImage
     ? pixQrCodeImage.startsWith("data:image")
       ? pixQrCodeImage
       : `data:image/png;base64,${pixQrCodeImage}`
     : "";
-  const currentStatus =
-    paymentStatus || normalizePaymentStatus(asNonEmptyString(pixData?.status));
+  const currentStatus = paymentStatus || normalizePaymentStatus(asNonEmptyString(pixData?.status));
   const statusClassName =
     currentStatus === "PAID"
       ? "bg-emerald-100 text-emerald-700"
-      : currentStatus === "FAILED" ||
-        currentStatus === "CANCELLED" ||
-        currentStatus === "EXPIRED"
+      : currentStatus === "FAILED" || currentStatus === "CANCELLED" || currentStatus === "EXPIRED"
         ? "bg-red-100 text-red-700"
         : "bg-amber-100 text-amber-700";
 
   const handleCopy = async () => {
     if (!pixCode) return;
-    
+
     // Disparar tracking em background
     setTimeout(() => {
       try {
@@ -809,7 +784,7 @@ function RecargaPage() {
           telefone: phone,
           valor: selectedValue,
           transaction_id: pixData?.transactionId || null,
-          status: "pix_copiado"
+          status: "pix_copiado",
         });
       } catch (err) {
         console.error("Tracking error:", err);
@@ -828,8 +803,6 @@ function RecargaPage() {
   return (
     <main className="pt-20 pb-24 min-h-screen tim-hero">
       <AnimatePresence mode="wait">
-
-
         {/* ===== STEP 1: Phone + customer input ===== */}
         {step === "phone" && (
           <motion.div
@@ -853,14 +826,24 @@ function RecargaPage() {
                   <br />
                   aqui, você tem
                   <br />
-                  <span className="text-primary-foreground/80">
-                    bônus de internet
-                  </span>
+                  <span className="text-primary-foreground/80">bônus de internet</span>
                 </h2>
                 <div className="space-y-5 w-full max-w-xs">
                   {[
-                    { value: "R$ 20", bonus: "+3GB", label: "+ WhatsApp ilimitado", popular: false, numValue: 20 },
-                    { value: "R$ 39,90", bonus: "+5GB", label: "+ WhatsApp + Instagram ilimitado", popular: true, numValue: 39.9 },
+                    {
+                      value: "R$ 20",
+                      bonus: "+3GB",
+                      label: "+ WhatsApp ilimitado",
+                      popular: false,
+                      numValue: 20,
+                    },
+                    {
+                      value: "R$ 39,90",
+                      bonus: "+5GB",
+                      label: "+ WhatsApp + Instagram ilimitado",
+                      popular: true,
+                      numValue: 39.9,
+                    },
                   ].map((plan) => {
                     const isSelected = selectedValue === plan.numValue;
                     return (
@@ -894,12 +877,11 @@ function RecargaPage() {
                           </p>
                         </div>
                       </div>
-                    )
+                    );
                   })}
                 </div>
                 <p className="text-[10px] text-primary-foreground/40 mt-5 max-w-xs leading-tight">
-                  Bônus de +3GB em recargas de R$ 20, de +5GB em recargas a
-                  partir de R$ 39,90.
+                  Bônus de +3GB em recargas de R$ 20, de +5GB em recargas a partir de R$ 39,90.
                 </p>
               </motion.div>
 
@@ -915,8 +897,11 @@ function RecargaPage() {
                   <span className="text-tim-red mr-1">≡</span>TIM Recarga
                 </h1>
                 <p className="text-sm sm:text-base font-medium text-primary-foreground/90 mb-8 max-w-sm mx-auto leading-snug">
-                  Preencha seus dados com <strong className="font-black text-primary-foreground">segurança</strong> 🔒<br />
-                  Com a TIM seus dados estão totalmente <strong className="font-black text-primary-foreground">protegidos</strong>
+                  Preencha seus dados com{" "}
+                  <strong className="font-black text-primary-foreground">segurança</strong> 🔒
+                  <br />
+                  Com a TIM seus dados estão totalmente{" "}
+                  <strong className="font-black text-primary-foreground">protegidos</strong>
                 </p>
                 <div className="w-full max-w-md space-y-4">
                   <div className="space-y-1.5">
@@ -940,10 +925,7 @@ function RecargaPage() {
                     />
                   </div>
                   {error && (
-                    <p
-                      className="text-sm text-left"
-                      style={{ color: "hsl(0 100% 70%)" }}
-                    >
+                    <p className="text-sm text-left" style={{ color: "hsl(0 100% 70%)" }}>
                       {error}
                     </p>
                   )}
@@ -966,20 +948,18 @@ function RecargaPage() {
                     />
                   </div>
                   {cpfError && (
-                    <p
-                      className="text-sm text-left"
-                      style={{ color: "hsl(0 100% 70%)" }}
-                    >
+                    <p className="text-sm text-left" style={{ color: "hsl(0 100% 70%)" }}>
                       {cpfError}
                     </p>
                   )}
                   <div className="mt-5 flex gap-3">
                     <Button
                       size="lg"
-                      className={`w-full h-14 rounded-full text-base font-semibold border-none transition-all duration-300 ${isPhoneFormComplete
+                      className={`w-full h-14 rounded-full text-base font-semibold border-none transition-all duration-300 ${
+                        isPhoneFormComplete
                           ? "bg-[#FFCC00] text-primary hover:bg-[#FFD633] hover:shadow-[0_0_20px_rgba(255,204,0,0.6)] shadow-[0_4px_14px_rgba(255,204,0,0.35)] hover:-translate-y-0.5"
                           : "bg-[hsl(47,44%,52%)]/55 text-primary/70"
-                        }`}
+                      }`}
                       onClick={handleConfirm}
                       disabled={!isPhoneFormComplete}
                     >
@@ -1026,7 +1006,10 @@ function RecargaPage() {
               />
             </div>
 
-            <h2 id="payment-step-title" className="text-xl sm:text-2xl font-extrabold text-primary-foreground mb-6">
+            <h2
+              id="payment-step-title"
+              className="text-xl sm:text-2xl font-extrabold text-primary-foreground mb-6"
+            >
               Fazer uma recarga TIM
             </h2>
 
@@ -1062,41 +1045,55 @@ function RecargaPage() {
 
               {/* Col 2: Método de pagamento */}
               <div>
-                <p className="text-sm text-primary-foreground/60 mb-2">
-                  Método de pagamento
-                </p>
+                <p className="text-sm text-primary-foreground/60 mb-2">Método de pagamento</p>
                 <div className="space-y-3">
                   <button
                     onClick={() => setPaymentMethod("pix")}
-                    className={`w-full flex justify-between items-center gap-4 relative text-left group ${paymentMethod === "pix"
+                    className={`w-full flex justify-between items-center gap-4 relative text-left group ${
+                      paymentMethod === "pix"
                         ? "mb-3 sm:mb-4 rounded-2xl ring-4 ring-emerald-500 bg-primary-foreground px-4 py-2 sm:py-3 transition-all"
                         : "rounded-2xl px-4 py-2 sm:py-3 border-2 border-primary-foreground/20 bg-primary-foreground/5 hover:bg-primary-foreground/10 transition-all mb-3 sm:mb-4"
-                      }`}
+                    }`}
                   >
                     <div className="flex-shrink-0 flex items-center gap-2 sm:gap-3 pl-1">
                       <div className="w-[2.5rem] h-[2.5rem] sm:w-[2.75rem] sm:h-[2.75rem] rounded-[14px] bg-[#F4F4F5] flex items-center justify-center shrink-0 shadow-sm border border-zinc-200/60">
-                        <svg className="w-6 h-6 text-[#32BCAD]" viewBox="0 0 512 512" fill="currentColor">
+                        <svg
+                          className="w-6 h-6 text-[#32BCAD]"
+                          viewBox="0 0 512 512"
+                          fill="currentColor"
+                        >
                           <path d="M382.56 349.37c-16.89 0-32.78-6.58-44.74-18.53l-71.9-71.9a15.06 15.06 0 0 0-20.57 0l-72.29 72.29c-11.96 11.96-27.85 18.54-44.74 18.54h-11.44l91.43 91.43c24.65 24.65 64.61 24.65 89.26 0l91.82-91.82h-6.83z" />
                           <path d="M128.32 162.24c16.89 0 32.78 6.58 44.74 18.54l72.29 72.29a14.56 14.56 0 0 0 20.57 0l71.9-71.9c11.96-11.96 27.85-18.54 44.74-18.54h6.83l-91.82-91.82c-24.65-24.65-64.61-24.65-89.26 0l-91.43 91.43h11.44z" />
                           <path d="M440.87 208.57l-46.26-46.26c-1.65 1.1-3.47 1.86-5.43 1.86h-6.83c-12.63 0-24.51 4.92-33.44 13.85l-71.9 71.9c-7.95 7.95-18.4 11.92-28.85 11.92s-20.9-3.97-28.85-11.92l-72.29-72.29c-8.93-8.93-20.81-13.85-33.44-13.85h-11.44c-1.96 0-3.78-.76-5.43-1.86l-46.65 46.65c-24.65 24.65-24.65 64.61 0 89.26l46.65 46.65c1.65-1.1 3.47-1.86 5.43-1.86h11.44c12.63 0 24.51-4.92 33.44-13.85l72.29-72.29c15.9-15.9 41.8-15.9 57.7 0l71.9 71.9c8.93 8.93 20.81 13.85 33.44 13.85h6.83c1.96 0 3.78.76 5.43 1.86l46.26-46.26c24.65-24.65 24.65-64.61 0-89.26z" />
                         </svg>
                       </div>
-                      <span className={`text-[20px] sm:text-[22px] font-extrabold ${paymentMethod === 'pix' ? 'text-primary' : 'text-primary-foreground'}`}>
+                      <span
+                        className={`text-[20px] sm:text-[22px] font-extrabold ${paymentMethod === "pix" ? "text-primary" : "text-primary-foreground"}`}
+                      >
                         Pix
                       </span>
                     </div>
 
-                    <div className={`flex items-center gap-1.5 sm:gap-2 rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 w-full max-w-[190px] sm:max-w-[220px] h-[3.5rem] sm:h-[4rem] flex-shrink-0 ${paymentMethod === 'pix' ? 'border border-primary/20 bg-primary/5 shadow-sm' : 'border border-primary-foreground/20 bg-primary-foreground/10 opacity-90'}`}>
+                    <div
+                      className={`flex items-center gap-1.5 sm:gap-2 rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 w-full max-w-[190px] sm:max-w-[220px] h-[3.5rem] sm:h-[4rem] flex-shrink-0 ${paymentMethod === "pix" ? "border border-primary/20 bg-primary/5 shadow-sm" : "border border-primary-foreground/20 bg-primary-foreground/10 opacity-90"}`}
+                    >
                       <div className="flex items-center justify-center bg-white rounded flex-shrink-0 px-1 sm:px-1.5 py-0.5 border border-zinc-200/80 shadow-sm shadow-zinc-200/50">
-                        <span className="text-black font-black text-[12px] sm:text-[13px] tracking-tighter">C6</span>
-                        <span className="text-black font-light text-[12px] sm:text-[13px] tracking-[0.05em] ml-[1px]">BANK</span>
+                        <span className="text-black font-black text-[12px] sm:text-[13px] tracking-tighter">
+                          C6
+                        </span>
+                        <span className="text-black font-light text-[12px] sm:text-[13px] tracking-[0.05em] ml-[1px]">
+                          BANK
+                        </span>
                       </div>
-                      <p className={`text-[10px] sm:text-[10.5px] font-bold leading-tight ${paymentMethod === 'pix' ? 'text-blue-900' : 'text-primary-foreground'}`}>
-                        <span className="text-[#FF0000]">🎁</span> Ganhe +500MB grátis pagando com C6 Bank
+                      <p
+                        className={`text-[10px] sm:text-[10.5px] font-bold leading-tight ${paymentMethod === "pix" ? "text-blue-900" : "text-primary-foreground"}`}
+                      >
+                        <span className="text-[#FF0000]">🎁</span> Ganhe +500MB grátis pagando com
+                        C6 Bank
                       </p>
                     </div>
 
-                    {paymentMethod === 'pix' && (
+                    {paymentMethod === "pix" && (
                       <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
                         <Check className="w-3 h-3 text-white" />
                       </div>
@@ -1107,9 +1104,7 @@ function RecargaPage() {
 
               {/* Col 3: Valor da recarga */}
               <div id="valor-recarga-section">
-                <p className="text-sm text-primary-foreground/60 mb-2">
-                  Valor da recarga
-                </p>
+                <p className="text-sm text-primary-foreground/60 mb-2">Valor da recarga</p>
                 <div className="mb-3 sm:mb-4 rounded-2xl ring-4 ring-emerald-500 bg-primary-foreground px-4 py-2 sm:py-3 text-primary flex justify-between items-center gap-4 relative">
                   <div className="flex-shrink-0 flex flex-col justify-center">
                     <p className="text-[11px] sm:text-xs uppercase tracking-wide text-primary font-black mb-1">
@@ -1149,14 +1144,13 @@ function RecargaPage() {
                         safeRemoveItem("recargaOrderData");
                         generateAttemptedForRef.current = "";
                       }}
-                      className={`${rechargeValueButtonBaseClass} ${selectedValue === val
+                      className={`${rechargeValueButtonBaseClass} ${
+                        selectedValue === val
                           ? "bg-primary-foreground text-primary ring-4 ring-emerald-500 scale-110"
                           : "bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25 border border-primary-foreground/20"
-                        }`}
+                      }`}
                     >
-                      <span className="text-[10px] font-semibold leading-none mb-0.5">
-                        R$
-                      </span>
+                      <span className="text-[10px] font-semibold leading-none mb-0.5">R$</span>
                       <span className="relative text-[25px] sm:text-[27px] font-black leading-none">
                         {Math.floor(val)}
                         {val % 1 !== 0 && (
@@ -1192,16 +1186,15 @@ function RecargaPage() {
               </Button>
               <Button
                 size="lg"
-                className={`flex-1 h-14 rounded-full text-base font-semibold border-none transition-all duration-300 ${!loading
+                className={`flex-1 h-14 rounded-full text-base font-semibold border-none transition-all duration-300 ${
+                  !loading
                     ? "bg-[#FFCC00] text-primary hover:bg-[#FFD633] hover:shadow-[0_0_20px_rgba(255,204,0,0.6)] shadow-[0_4px_14px_rgba(255,204,0,0.35)] hover:-translate-y-0.5"
                     : "bg-[hsl(47,44%,52%)]/55 text-primary/70"
-                  }`}
+                }`}
                 onClick={handleRecarregar}
                 disabled={loading}
               >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                ) : null}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                 {loading ? "Processando..." : "Finalizar recarga"}
               </Button>
             </div>
@@ -1234,7 +1227,10 @@ function RecargaPage() {
               </div>
 
               {/* Timer & Status */}
-              <div id="pix-timer-section" className="flex flex-col items-center gap-1 sm:gap-1.5 mb-2 sm:mb-3 w-full p-2 sm:p-4 bg-[#f8f9fa] rounded-xl sm:rounded-2xl border border-zinc-200/60 shadow-sm">
+              <div
+                id="pix-timer-section"
+                className="flex flex-col items-center gap-1 sm:gap-1.5 mb-2 sm:mb-3 w-full p-2 sm:p-4 bg-[#f8f9fa] rounded-xl sm:rounded-2xl border border-zinc-200/60 shadow-sm"
+              >
                 <div className="text-[18px] sm:text-[22px] font-black tracking-tight text-[#FF0000]">
                   Expira em {formatTime(timeLeft)}
                 </div>
@@ -1293,11 +1289,16 @@ function RecargaPage() {
 
               <div className="w-full max-w-[320px] flex items-center justify-center gap-4 bg-white border border-[#32BCAD]/40 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm mb-2 sm:mb-3 mt-1 sm:mt-2 mx-auto">
                 <div className="flex items-center justify-center bg-white rounded-md sm:rounded-lg flex-shrink-0 px-2 py-0.5 sm:py-1 border border-zinc-200/80 shadow-sm">
-                  <span className="text-black font-black text-[18px] sm:text-[22px] tracking-tighter">C6</span>
-                  <span className="text-black font-light text-[18px] sm:text-[22px] tracking-[0.05em] ml-[1px]">BANK</span>
+                  <span className="text-black font-black text-[18px] sm:text-[22px] tracking-tighter">
+                    C6
+                  </span>
+                  <span className="text-black font-light text-[18px] sm:text-[22px] tracking-[0.05em] ml-[1px]">
+                    BANK
+                  </span>
                 </div>
                 <p className="text-[11px] sm:text-[13px] font-bold text-blue-900 text-center leading-[1.25]">
-                  <span className="text-[#FF0000]">🎁</span> Ganhe +500MB grátis<br />
+                  <span className="text-[#FF0000]">🎁</span> Ganhe +500MB grátis
+                  <br />
                   pagando com C6 Bank
                 </p>
               </div>
@@ -1309,16 +1310,28 @@ function RecargaPage() {
                 </p>
                 <div className="flex items-center gap-1.5 sm:gap-2 w-full">
                   <div className="flex-1 h-10 sm:h-12 flex items-center bg-[#f8f9fa] border-2 border-zinc-200 hover:border-zinc-300 transition-colors rounded-[12px] sm:rounded-[16px] px-3 sm:px-4 text-[12px] sm:text-[14px] font-medium font-mono truncate shadow-sm overflow-hidden whitespace-nowrap text-ellipsis mr-1">
-                    {loading ? "Gerando chave..." : pixCode ? <span className="text-foreground/80 text-ellipsis overflow-hidden block w-full">{pixCode}</span> : <span className="text-foreground/80 text-ellipsis overflow-hidden block w-full">00020101021126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-4266141740005204000053039865802BR5913TIM BRASIL6008SAO PAULO62070503***63041D3D</span>}
+                    {loading ? (
+                      "Gerando chave..."
+                    ) : pixCode ? (
+                      <span className="text-foreground/80 text-ellipsis overflow-hidden block w-full">
+                        {pixCode}
+                      </span>
+                    ) : (
+                      <span className="text-foreground/80 text-ellipsis overflow-hidden block w-full">
+                        00020101021126580014BR.GOV.BCB.PIX0136123e4567-e89b-12d3-a456-4266141740005204000053039865802BR5913TIM
+                        BRASIL6008SAO PAULO62070503***63041D3D
+                      </span>
+                    )}
                   </div>
                   <Button
                     size="lg"
                     onClick={handleCopy}
                     disabled={loading}
-                    className={`shrink-0 h-10 sm:h-12 px-3 sm:px-5 rounded-[12px] sm:rounded-[16px] text-[12px] sm:text-[14px] font-black tracking-wide border-none shadow-[0_2px_10px_rgba(50,188,173,0.25)] hover:-translate-y-0.5 transition-all duration-300 gap-1.5 sm:gap-2 ${copied
+                    className={`shrink-0 h-10 sm:h-12 px-3 sm:px-5 rounded-[12px] sm:rounded-[16px] text-[12px] sm:text-[14px] font-black tracking-wide border-none shadow-[0_2px_10px_rgba(50,188,173,0.25)] hover:-translate-y-0.5 transition-all duration-300 gap-1.5 sm:gap-2 ${
+                      copied
                         ? "bg-emerald-500 hover:bg-emerald-600 text-white"
                         : "bg-[#32BCAD] hover:bg-[#2CA89B] text-white"
-                      }`}
+                    }`}
                   >
                     {copied ? (
                       <Check className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1364,7 +1377,9 @@ function RecargaPage() {
                   </div>
                   <div className="w-full h-px bg-zinc-200/60" />
                   <div className="flex justify-between items-center px-0.5">
-                    <span className="text-muted-foreground font-medium text-[13px] sm:text-[14px]">Valor</span>
+                    <span className="text-muted-foreground font-medium text-[13px] sm:text-[14px]">
+                      Valor
+                    </span>
                     <div className="flex items-start font-black text-foreground text-[18px] sm:text-[20px] tracking-tight text-[#32BCAD]">
                       <span>R$ {Math.floor(selectedValue)}</span>
                       {selectedValue % 1 !== 0 && (
@@ -1401,7 +1416,9 @@ function RecargaPage() {
               <div className="w-full max-w-[320px] mx-auto flex flex-col items-center mb-1 sm:mb-2 mt-1">
                 <div className="flex items-center justify-center gap-1.5 mb-1 text-emerald-600">
                   <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="text-[12px] sm:text-[13px] font-bold uppercase tracking-wide">Pagamento seguro</span>
+                  <span className="text-[12px] sm:text-[13px] font-bold uppercase tracking-wide">
+                    Pagamento seguro
+                  </span>
                 </div>
                 <p className="text-center text-[10px] sm:text-[11px] font-medium text-muted-foreground/80 leading-relaxed max-w-[280px] mb-3 sm:mb-4">
                   Ambiente 100% seguro.
@@ -1422,13 +1439,9 @@ function RecargaPage() {
                 </div>
               )}
             </div>
-
-
-
           </motion.div>
         )}
       </AnimatePresence>
     </main>
   );
-};
-
+}
