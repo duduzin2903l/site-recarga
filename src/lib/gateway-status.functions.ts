@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { deriveSharpifyClientId } from "@/lib/pix-gateways";
 
 export interface GatewayStatus {
   active: "sharpify" | "blackcat" | "laranjinha";
@@ -26,7 +27,9 @@ export const getGatewayStatus = createServerFn({ method: "POST" })
     return {
       active,
       sharpifyConfigured: Boolean(
-        process.env["SHARPIFY_CLIENT_ID"] && process.env["SHARPIFY_CLIENT_SECRET"],
+        process.env["SHARPIFY_CLIENT_SECRET"] &&
+        (process.env["SHARPIFY_CLIENT_ID"] ||
+          deriveSharpifyClientId(process.env["SHARPIFY_CLIENT_SECRET"])),
       ),
       blackcatConfigured: Boolean(
         process.env["BLACKCAT_SECRET_KEY"] || process.env["STRIPE_LIVE_API_KEY"],
@@ -34,4 +37,3 @@ export const getGatewayStatus = createServerFn({ method: "POST" })
       laranjinhaConfigured: Boolean(process.env["LARANJINHA_SECRET_KEY"]),
     };
   });
-

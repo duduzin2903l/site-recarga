@@ -27,6 +27,12 @@ export interface CreatePixInput {
   customerDocument?: string;
 }
 
+export interface SharpifyCredentials {
+  clientId: string;
+  clientSecret: string;
+  webhookUrl?: string;
+}
+
 export function normalizeGateway(value: string | undefined): GatewayId {
   const v = String(value || "").toLowerCase();
   if (v === "blackcat") return "blackcat";
@@ -34,21 +40,31 @@ export function normalizeGateway(value: string | undefined): GatewayId {
   return "sharpify";
 }
 
-
 /* ------------------------------- Sharpify ------------------------------- */
 
-const SHARPIFY_BASE = "https://api.sharpify.com.br";
+const SHARPIFY_BASE = "https://sharpify-pay.com";
+
+export function deriveSharpifyClientId(clientSecret: string): string {
+  const match = /^SHARPIFY_CLIENT_SECRET_([^_]+)_/.exec(clientSecret);
+  return match ? `SHARPIFY_CLIENT_ID_${match[1]}` : "";
+}
 
 export async function sharpifyCreatePix(
-  creds: { clientId: string; clientSecret: string },
+  creds: SharpifyCredentials,
   input: CreatePixInput,
 ): Promise<PixResult> {
   const cleanPhone = String(input.phone || "").replace(/\D/g, "");
-  const name = cleanPhone
-    ? `Recarga TIM ${cleanPhone}`
-    : `Recarga TIM ${Date.now()}`;
+  const name = cleanPhone ? `Recarga TIM ${cleanPhone}` : `Recarga TIM ${Date.now()}`;
 
-  const res = await fetch(`${SHARPIFY_BASE}/api/v1/checkout/payment-link/create`, {
+  const webhook = creds.webhookUrl
+    ? {
+        webhook: {
+          callbackURL: creds.webhookUrl,
+        },
+      }
+    : {};
+
+  const res = await fetch(`${SHARPIFY_BASE}/api/v1/gateway/payment/create-paymnet`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -60,6 +76,7 @@ export async function sharpifyCreatePix(
       description: `Recarga TIM - R$ ${input.amount.toFixed(2)}`,
       amount: input.amount,
       gatewayMethod: "PIX",
+      ...webhook,
     }),
   });
   const data = await res.json().catch(() => ({}) as any);
@@ -79,10 +96,10 @@ export async function sharpifyCreatePix(
 }
 
 export async function sharpifyCheckStatus(
-  creds: { clientId: string; clientSecret: string },
+  creds: SharpifyCredentials,
   transactionId: string,
 ): Promise<PixStatusResult> {
-  const url = `${SHARPIFY_BASE}/api/v1/checkout/payment-link/get?paymentLinkId=${encodeURIComponent(transactionId)}`;
+  const url = `${SHARPIFY_BASE}/api/v1/gateway/payment/get-payment?paymentLinkId=${encodeURIComponent(transactionId)}`;
   const res = await fetch(url, {
     method: "GET",
     headers: {
@@ -114,10 +131,7 @@ function pick(obj: any, keys: string[]): string {
   return "";
 }
 
-export async function blackcatCreatePix(
-  apiKey: string,
-  input: CreatePixInput,
-): Promise<PixResult> {
+export async function blackcatCreatePix(apiKey: string, input: CreatePixInput): Promise<PixResult> {
   const cleanPhone = String(input.phone || "").replace(/\D/g, "");
   const document = String(input.customerDocument || "").replace(/\D/g, "");
 
@@ -175,10 +189,10 @@ export async function blackcatCheckStatus(
   apiKey: string,
   transactionId: string,
 ): Promise<PixStatusResult> {
-  const res = await fetch(
-    `${BLACKCAT_BASE}/api/sales/${encodeURIComponent(transactionId)}`,
-    { method: "GET", headers: { "X-API-Key": apiKey } },
-  );
+  const res = await fetch(`${BLACKCAT_BASE}/api/sales/${encodeURIComponent(transactionId)}`, {
+    method: "GET",
+    headers: { "X-API-Key": apiKey },
+  });
   const data = await res.json().catch(() => ({}) as any);
   if (!res.ok) {
     throw Object.assign(new Error("Erro ao verificar status"), { details: data });
@@ -186,7 +200,14 @@ export async function blackcatCheckStatus(
   const sale = data?.data || data?.sale || data;
   const rawStatus = String(sale?.status || sale?.paymentStatus || "").toUpperCase();
   const paid = ["PAID", "APPROVED", "COMPLETED", "PAID_OUT"].includes(rawStatus);
-  const cancelled = ["CANCELLED", "CANCELED", "REFUSED", "REFUNDED", "CHARGEBACK", "EXPIRED"].includes(rawStatus);
+  const cancelled = [
+    "CANCELLED",
+    "CANCELED",
+    "REFUSED",
+    "REFUNDED",
+    "CHARGEBACK",
+    "EXPIRED",
+  ].includes(rawStatus);
   return {
     status: paid ? "PAID" : cancelled ? "CANCELLED" : "PENDING",
     rawStatus,
@@ -208,7 +229,6 @@ export async function laranjinhaCreatePix(
   const cleanPhone = String(input.phone || "").replace(/\D/g, "");
   const document = String(input.customerDocument || "").replace(/\D/g, "");
   const path = creds.createPath || "/charges";
-
 
   const res = await fetch(`${laranjinhaBase(creds.baseUrl)}${path}`, {
     method: "POST",
@@ -279,6 +299,14 @@ export async function laranjinhaCheckStatus(
   const charge = data?.data || data?.charge || data;
   const rawStatus = String(charge?.status || charge?.payment_status || "").toUpperCase();
   const paid = ["PAID", "APPROVED", "COMPLETED", "CONFIRMED", "SUCCEEDED"].includes(rawStatus);
-  const cancelled = ["CANCELLED", "CANCELED", "REFUSED", "REFUNDED", "CHARGEBACK", "EXPIRED", "FAILED"].includes(rawStatus);
+  const cancelled = [
+    "CANCELLED",
+    "CANCELED",
+    "REFUSED",
+    "REFUNDED",
+    "CHARGEBACK",
+    "EXPIRED",
+    "FAILED",
+  ].includes(rawStatus);
   return { status: paid ? "PAID" : cancelled ? "CANCELLED" : "PENDING", rawStatus };
 }
