@@ -44,12 +44,16 @@ const safeGetItem = (key: string) => {
 const safeSetItem = (key: string, value: string) => {
   try {
     localStorage.setItem(key, value);
-  } catch {}
+  } catch {
+    // Storage is optional; checkout continues when the browser blocks it.
+  }
 };
 const safeRemoveItem = (key: string) => {
   try {
     localStorage.removeItem(key);
-  } catch {}
+  } catch {
+    // Storage is optional; checkout continues when the browser blocks it.
+  }
 };
 
 const phoneSchema = z.string().trim().min(10, "Número inválido. Use DDD + número.").max(15);
@@ -82,6 +86,7 @@ type Step = "phone" | "payment" | "pix";
 type PixData = {
   transactionId?: string;
   status?: string;
+  createdAt?: string;
   expiresAt?: string;
   invoiceUrl?: string;
   pixCode?: string;
@@ -92,6 +97,16 @@ type PixData = {
 type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "EXPIRED" | "REFUNDED" | "";
 
 const RECHARGE_VALUES = [20, 24.9, 29.9, 34.9, 39.9, 44.9, 49.9, 69.9, 99.9];
+const UTMIFY_TRACKING_KEYS = [
+  "src",
+  "sck",
+  "utm_source",
+  "utm_campaign",
+  "utm_medium",
+  "utm_content",
+  "utm_term",
+] as const;
+const UTMIFY_TRACKING_STORAGE_KEY = "recargaUtmifyTracking";
 const BONUS_MAP: Record<number, string> = {
   20: "+3GB de bônus para WhatsApp, Instagram e redes sociais por 30 dias",
   24.9: "+4GB de bônus para WhatsApp, Instagram e Facebook por 30 dias",
@@ -122,6 +137,33 @@ const getByPath = (source: unknown, path: string[]): unknown => {
 
 const asNonEmptyString = (value: unknown): string =>
   typeof value === "string" ? value.trim() : "";
+
+const getUtmifyTrackingParameters = (): Record<string, string | null> => {
+  const tracking: Record<string, string | null> = {};
+  const search = new URLSearchParams(window.location.search);
+  const saved = safeGetItem(UTMIFY_TRACKING_STORAGE_KEY);
+  let savedTracking: Record<string, unknown> = {};
+
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved) as unknown;
+      if (isRecord(parsed)) savedTracking = parsed;
+    } catch {
+      // Ignore malformed campaign data saved by an older session.
+    }
+  }
+
+  let foundInUrl = false;
+  for (const key of UTMIFY_TRACKING_KEYS) {
+    const fromUrl = search.get(key)?.trim() || "";
+    const fromStorage = asNonEmptyString(savedTracking[key]);
+    tracking[key] = fromUrl || fromStorage || null;
+    if (fromUrl) foundInUrl = true;
+  }
+
+  if (foundInUrl) safeSetItem(UTMIFY_TRACKING_STORAGE_KEY, JSON.stringify(tracking));
+  return tracking;
+};
 
 const extractPixFields = (payload: unknown) => {
   const pixCodePaths = [
@@ -339,6 +381,7 @@ function RecargaPage() {
         return {
           transactionId: parsed.txid,
           status: parsed.status,
+          createdAt: parsed.createdAt,
           expiresAt: parsed.expiresAt ? new Date(parsed.expiresAt).toISOString() : undefined,
           pixCode: parsed.pixCode,
           qrCodeBase64: parsed.qrCodeImage,
@@ -402,6 +445,7 @@ function RecargaPage() {
         amount,
         phone,
         customerDocument: cpf.replace(/\D/g, ""),
+        trackingParameters: getUtmifyTrackingParameters(),
       }),
     });
     const data = await res.json();
@@ -430,6 +474,10 @@ function RecargaPage() {
     const expiresAt =
       asNonEmptyString(getByPath(data, ["expiresAt"])) ||
       asNonEmptyString(getByPath(data, ["data", "paymentData", "expiresAt"]));
+    const createdAt =
+      asNonEmptyString(getByPath(data, ["createdAt"])) ||
+      asNonEmptyString(getByPath(data, ["data", "createdAt"])) ||
+      new Date().toISOString();
     const invoiceUrl =
       asNonEmptyString(getByPath(data, ["invoiceUrl"])) ||
       asNonEmptyString(getByPath(data, ["data", "invoiceUrl"]));
@@ -442,6 +490,7 @@ function RecargaPage() {
       ...(isRecord(data) ? data : {}),
       transactionId,
       status: status || "PENDING",
+      createdAt,
       expiresAt,
       invoiceUrl,
       pixCode: resolvedPix.pixCode,
@@ -535,7 +584,14 @@ function RecargaPage() {
         const res = await fetch("/api/public/check-pix-payment-status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transactionId: pixData.transactionId }),
+          body: JSON.stringify({
+            transactionId: pixData.transactionId,
+            amount: selectedValue,
+            phone,
+            customerDocument: cpf.replace(/\D/g, ""),
+            createdAt: pixData.createdAt,
+            trackingParameters: getUtmifyTrackingParameters(),
+          }),
         });
         const data = await res.json();
         if (!res.ok) return;
@@ -550,7 +606,9 @@ function RecargaPage() {
               const parsed = JSON.parse(savedStr);
               parsed.status = status;
               safeSetItem("recargaOrderData", JSON.stringify(parsed));
-            } catch (e) {}
+            } catch {
+              // Ignore an obsolete or malformed saved checkout.
+            }
           }
         }
 
@@ -567,7 +625,9 @@ function RecargaPage() {
                     parsed.pixCode = resolved.pixCode;
                     if (resolved.qrCodeBase64) parsed.qrCodeImage = resolved.qrCodeBase64;
                     safeSetItem("recargaOrderData", JSON.stringify(parsed));
-                  } catch (e) {}
+                  } catch {
+                    // Ignore an obsolete or malformed saved checkout.
+                  }
                 }
                 return {
                   ...prev,
@@ -618,7 +678,7 @@ function RecargaPage() {
       }
       setCheckingStatus(false);
     };
-  }, [step, pixData?.transactionId]);
+  }, [step, pixData?.transactionId, pixData?.createdAt, selectedValue, phone, cpf]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -735,6 +795,7 @@ function RecargaPage() {
         qrCodeImage: pixDataResult.qrCodeBase64,
         txid: pixDataResult.transactionId,
         status: pixDataResult.status || "PENDING",
+        createdAt: pixDataResult.createdAt,
         expiresAt: expiresAtTimestamp,
       };
       safeSetItem("recargaOrderData", JSON.stringify(orderData));
